@@ -39,9 +39,10 @@ namespace comp1682_back_end
       // Add AutoMapper
       services.AddAutoMapper(typeof(Startup));
 
-      // Add repositories and dependency injection
+      // Add repositories and unit of work with dependency injection
       services.AddScoped<IProductRepository, ProductRepository>();
       services.AddScoped<ICategoryRepository, CategoryRepository>();
+      services.AddScoped<IUnitOfWork, UnitOfWork>();
 
       services.AddSwaggerGen(c =>
       {

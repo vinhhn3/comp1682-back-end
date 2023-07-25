@@ -1,150 +1,53 @@
-## Overview of the Repository Pattern
+## Overview of Unit Of Work
 
-![Alt text](image-8.png)
+The Unit of Work pattern will provide a higher level of abstraction and a single entry point for managing transactions across multiple repositories.
 
-## Create the Repository Interfaces
+![Alt text](image-9.png)
 
-Create two new folders in your project: ` Repositories`` and  `Interfaces`
+## Create the Unit of Work Interface
 
-Inside the `Interfaces` folder, create two interfaces: `IProductRepository.cs` and `ICategoryRepository.cs`.
+Create a new interface named `IUnitOfWork.cs` in the `Interfaces` folder:
 
 ```cs
-// IProductRepository.cs
-public interface IProductRepository
+// IUnitOfWork.cs
+public interface IUnitOfWork
 {
-    Task<IEnumerable<Product>> GetAllProducts();
-    Task<Product> GetProductById(int id);
-    Task<Product> AddProduct(Product product);
-    Task<Product> UpdateProduct(Product product);
-    Task<bool> DeleteProduct(int id);
-}
+    IProductRepository Products { get; }
+    ICategoryRepository Categories { get; }
 
-// ICategoryRepository.cs
-public interface ICategoryRepository
-{
-    Task<IEnumerable<Category>> GetAllCategories();
-    Task<Category> GetCategoryById(int id);
-    Task<Category> AddCategory(Category category);
-    Task<Category> UpdateCategory(Category category);
-    Task<bool> DeleteCategory(int id);
+    Task<int> SaveChangesAsync();
 }
 ```
 
-## Implement the Repository Classes
+## Implement the Unit of Work
 
-Inside the `Repositories` folder, create two classes: `ProductRepository.cs` and `CategoryRepository.cs`.
-
-These classes will implement the respective interfaces and handle data access logic.
+Create a new class named `UnitOfWork.cs` in the `Repositories` folder:
 
 ```cs
-// ProductRepository.cs
-using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-public class ProductRepository : IProductRepository
-{
+  public class UnitOfWork : IUnitOfWork
+  {
     private readonly AppDbContext _context;
 
-    public ProductRepository(AppDbContext context)
+    public UnitOfWork(AppDbContext context)
     {
-        _context = context;
+      _context = context;
+      Products = new ProductRepository(_context);
+      Categories = new CategoryRepository(_context);
     }
 
-    public async Task<IEnumerable<Product>> GetAllProducts()
+    public IProductRepository Products { get; private set; }
+    public ICategoryRepository Categories { get; private set; }
+
+    public async Task<int> SaveChangesAsync()
     {
-        return await _context.Products.ToListAsync();
+      return await _context.SaveChangesAsync();
     }
-
-    public async Task<Product> GetProductById(int id)
-    {
-        return await _context.Products.FindAsync(id);
-    }
-
-    public async Task<Product> AddProduct(Product product)
-    {
-        _context.Products.Add(product);
-        await _context.SaveChangesAsync();
-        return product;
-    }
-
-    public async Task<Product> UpdateProduct(Product product)
-    {
-        _context.Entry(product).State = EntityState.Modified;
-        await _context.SaveChangesAsync();
-        return product;
-    }
-
-    public async Task<bool> DeleteProduct(int id)
-    {
-        var product = await _context.Products.FindAsync(id);
-        if (product == null)
-            return false;
-
-        _context.Products.Remove(product);
-        await _context.SaveChangesAsync();
-        return true;
-    }
-}
-
-// CategoryRepository.cs
-using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-public class CategoryRepository : ICategoryRepository
-{
-    private readonly AppDbContext _context;
-
-    public CategoryRepository(AppDbContext context)
-    {
-        _context = context;
-    }
-
-    public async Task<IEnumerable<Category>> GetAllCategories()
-    {
-        return await _context.Categories.ToListAsync();
-    }
-
-    public async Task<Category> GetCategoryById(int id)
-    {
-        return await _context.Categories.FindAsync(id);
-    }
-
-    public async Task<Category> AddCategory(Category category)
-    {
-        _context.Categories.Add(category);
-        await _context.SaveChangesAsync();
-        return category;
-    }
-
-    public async Task<Category> UpdateCategory(Category category)
-    {
-        _context.Entry(category).State = EntityState.Modified;
-        await _context.SaveChangesAsync();
-        return category;
-    }
-
-    public async Task<bool> DeleteCategory(int id)
-    {
-        var category = await _context.Categories.FindAsync(id);
-        if (category == null)
-            return false;
-
-        _context.Categories.Remove(category);
-        await _context.SaveChangesAsync();
-        return true;
-    }
-}
+  }
 ```
 
-## Register Services with Dependency Injection
+## Update Dependency Injection in Startup.cs
 
-Open the `Startup.cs` file.
-
-In the ConfigureServices method, replace the existing code with the following:
+In the ConfigureServices method in `Startup.cs`, register the Unit of Work as a service:
 
 ```cs
 public void ConfigureServices(IServiceCollection services)
@@ -153,9 +56,10 @@ public void ConfigureServices(IServiceCollection services)
     services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
 
-    // Add repositories and dependency injection
+    // Add repositories and unit of work with dependency injection
     services.AddScoped<IProductRepository, ProductRepository>();
     services.AddScoped<ICategoryRepository, CategoryRepository>();
+    services.AddScoped<IUnitOfWork, UnitOfWork>();
 
     // Add AutoMapper
     services.AddAutoMapper(typeof(Startup));
@@ -175,12 +79,11 @@ public void ConfigureServices(IServiceCollection services)
 }
 ```
 
-## Update the Controllers to Use Dependency Injection
+## Update the Controllers to Use Unit of Work
 
-Now, update the `ProductsController` and `CategoriesController` to use dependency injection for the repository interfaces.
+Now, update the `ProductsController` and `CategoriesController` to use the Unit of Work pattern:
 
 ```cs
-// ProductsController.cs
 // ProductsController.cs
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
@@ -191,26 +94,26 @@ using System.Threading.Tasks;
 [ApiController]
 public class ProductsController : ControllerBase
 {
-    private readonly IProductRepository _productRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public ProductsController(IProductRepository productRepository, IMapper mapper)
+    public ProductsController(IUnitOfWork unitOfWork, IMapper mapper)
     {
-        _productRepository = productRepository;
+        _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts()
     {
-        var products = await _productRepository.GetAllProducts();
+        var products = await _unitOfWork.Products.GetAllProducts();
         return _mapper.Map<List<ProductDto>>(products);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ProductDto>> GetProduct(int id)
     {
-        var product = await _productRepository.GetProductById(id);
+        var product = await _unitOfWork.Products.GetProductById(id);
 
         if (product == null)
         {
@@ -224,7 +127,8 @@ public class ProductsController : ControllerBase
     public async Task<ActionResult<ProductDto>> PostProduct(ProductDto productDto)
     {
         var product = _mapper.Map<Product>(productDto);
-        var addedProduct = await _productRepository.AddProduct(product);
+        var addedProduct = await _unitOfWork.Products.AddProduct(product);
+        await _unitOfWork.SaveChangesAsync();
         return CreatedAtAction(nameof(GetProduct), new { id = addedProduct.Id }, _mapper.Map<ProductDto>(addedProduct));
     }
 
@@ -236,14 +140,14 @@ public class ProductsController : ControllerBase
             return BadRequest();
         }
 
-        var existingProduct = await _productRepository.GetProductById(id);
+        var existingProduct = await _unitOfWork.Products.GetProductById(id);
         if (existingProduct == null)
         {
             return NotFound();
         }
 
         _mapper.Map(productDto, existingProduct);
-        var updatedProduct = await _productRepository.UpdateProduct(existingProduct);
+        await _unitOfWork.SaveChangesAsync();
 
         return NoContent();
     }
@@ -251,15 +155,16 @@ public class ProductsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteProduct(int id)
     {
-        var product = await _productRepository.GetProductById(id);
+        var product = await _unitOfWork.Products.GetProductById(id);
         if (product == null)
         {
             return NotFound();
         }
 
-        var deleted = await _productRepository.DeleteProduct(id);
+        var deleted = await _unitOfWork.Products.DeleteProduct(id);
         if (deleted)
         {
+            await _unitOfWork.SaveChangesAsync();
             return NoContent();
         }
         else
@@ -273,7 +178,6 @@ public class ProductsController : ControllerBase
 
 ```cs
 // CategoriesController.cs
-// CategoriesController.cs
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
@@ -283,26 +187,26 @@ using System.Threading.Tasks;
 [ApiController]
 public class CategoriesController : ControllerBase
 {
-    private readonly ICategoryRepository _categoryRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public CategoriesController(ICategoryRepository categoryRepository, IMapper mapper)
+    public CategoriesController(IUnitOfWork unitOfWork, IMapper mapper)
     {
-        _categoryRepository = categoryRepository;
+        _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CategoryDto>>> GetCategories()
     {
-        var categories = await _categoryRepository.GetAllCategories();
+        var categories = await _unitOfWork.Categories.GetAllCategories();
         return _mapper.Map<List<CategoryDto>>(categories);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<CategoryDto>> GetCategory(int id)
     {
-        var category = await _categoryRepository.GetCategoryById(id);
+        var category = await _unitOfWork.Categories.GetCategoryById(id);
 
         if (category == null)
         {
@@ -316,7 +220,8 @@ public class CategoriesController : ControllerBase
     public async Task<ActionResult<CategoryDto>> PostCategory(CategoryDto categoryDto)
     {
         var category = _mapper.Map<Category>(categoryDto);
-        var addedCategory = await _categoryRepository.AddCategory(category);
+        var addedCategory = await _unitOfWork.Categories.AddCategory(category);
+        await _unitOfWork.SaveChangesAsync();
         return CreatedAtAction(nameof(GetCategory), new { id = addedCategory.Id }, _mapper.Map<CategoryDto>(addedCategory));
     }
 
@@ -328,14 +233,14 @@ public class CategoriesController : ControllerBase
             return BadRequest();
         }
 
-        var existingCategory = await _categoryRepository.GetCategoryById(id);
+        var existingCategory = await _unitOfWork.Categories.GetCategoryById(id);
         if (existingCategory == null)
         {
             return NotFound();
         }
 
         _mapper.Map(categoryDto, existingCategory);
-        var updatedCategory = await _categoryRepository.UpdateCategory(existingCategory);
+        await _unitOfWork.SaveChangesAsync();
 
         return NoContent();
     }
@@ -343,15 +248,16 @@ public class CategoriesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteCategory(int id)
     {
-        var category = await _categoryRepository.GetCategoryById(id);
+        var category = await _unitOfWork.Categories.GetCategoryById(id);
         if (category == null)
         {
             return NotFound();
         }
 
-        var deleted = await _categoryRepository.DeleteCategory(id);
+        var deleted = await _unitOfWork.Categories.DeleteCategory(id);
         if (deleted)
         {
+            await _unitOfWork.SaveChangesAsync();
             return NoContent();
         }
         else
