@@ -1,104 +1,86 @@
 ## Overview of the Application
 
-![Alt text](image-6.png)
+![Alt text](image-7.png)
 
-## Set up the Data Model
+## Install AutoMapper NuGet Package
 
-In the Solution Explorer, right-click on your project and choose Add > New Folder. Name the folder "Models."
+Right-click on your project in the Solution Explorer and select Manage NuGet Packages.
 
-Inside the "Models" folder, create two classes: "Product.cs" and "Category.cs."
+In the NuGet Package Manager, search for `AutoMapper.Extensions.Microsoft.DependencyInjection` and click Install to add the AutoMapper package to your project.
 
-```cs
-// Product.cs
-public class Product
-{
-    public int Id { get; set; }
-    public string Name { get; set; }
-    public decimal Price { get; set; }
-    public int CategoryId { get; set; }
-    public Category Category { get; set; }
-}
-
-// Category.cs
-public class Category
-{
-    public int Id { get; set; }
-    public string Name { get; set; }
-}
-
-```
-
-## Set up the Database Context
-
-In the Solution Explorer, right-click on your project and choose Add > New Folder. Name the folder "Data."
-
-Inside the `Data` folder, create a class named `AppDbContext.cs` for the database context.
-
-```cs
-// AppDbContext.cs
-using comp1682_back_end.Models;
-
-using Microsoft.EntityFrameworkCore;
-
-
-namespace comp1682_back_end.Data
-{
-  public class AppDbContext : DbContext
-  {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
-    {
-    }
-
-    public DbSet<Product> Products { get; set; }
-    public DbSet<Category> Categories { get; set; }
-  }
-}
-
-```
-
-Make sure to install `Microsoft.EntityFrameworkCore` package with Nuget, version 3.1.0
-
-![Alt text](image.png)
-
-## Configure Dependency Injection
+## Configure AutoMapper in Startup.cs
 
 Open the `Startup.cs` file.
-
-In the ConfigureServices method, add the following code to configure the database context and use SQL Server LocalDB:
+In the ConfigureServices method, add the following code to configure AutoMapper:
 
 ```cs
-using Microsoft.EntityFrameworkCore;
-
 public void ConfigureServices(IServiceCollection services)
 {
     // Add the database context and use SQL Server LocalDB
     services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
 
+    // Add AutoMapper
+    services.AddAutoMapper(typeof(Startup));
+
+    // Add Swagger documentation
+    services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new OpenApiInfo
+        {
+            Title = "Your API Name",
+            Version = "v1",
+            Description = "Your API description",
+        });
+    });
+
     services.AddControllers();
 }
 ```
 
-Make sure to install packge `Microsoft.EntityFrameworkCore.SqlServer` Version `3.1.0`
+## Create DTOs (Data Transfer Objects)
 
-![Alt text](image-1.png)
+In the "Models" folder, create classes for DTOs that will be used to transfer data between the Web API and the client.
 
-In the `appsettings.json` file, add the connection string:
+You can name them `ProductDto` and `CategoryDto`.
 
-```json
+```csharp
+// ProductDto.cs
+public class ProductDto
 {
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=comp1682-back-end;Trusted_Connection=True;"
-  }
-  // Other configurations...
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public decimal Price { get; set; }
+    public int CategoryId { get; set; }
 }
+
+// CategoryDto.cs
+public class CategoryDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+}
+
 ```
 
-## Create Web API Controllers
+## Configure AutoMapper Mapping Profiles
 
-In the Solution Explorer, right-click on your project and choose Add > New Folder. Name the folder `Controllers`
+In the root of your project, create a folder named `Mappings` and add a class named `MappingProfiles.cs`.
 
-Inside the `Controllers` folder, create two classes: `ProductsController.cs` and `CategoriesController.cs`
+```cs
+  public class MappingProfiles : Profile
+  {
+    public MappingProfiles()
+    {
+      CreateMap<Product, ProductDto>().ReverseMap();
+      CreateMap<Category, CategoryDto>().ReverseMap();
+    }
+  }
+```
+
+## Update the Controllers to Use AutoMapper
+
+Update the `ProductsController` and `CategoriesController` to use AutoMapper for mapping between entities and DTOs.
 
 ```cs
 // ProductsController.cs
@@ -111,6 +93,9 @@ using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoMapper;
+using comp1682_back_end.DTOs;
+
 namespace comp1682_back_end.Controllers
 {
 
@@ -120,20 +105,23 @@ namespace comp1682_back_end.Controllers
   public class ProductsController : ControllerBase
   {
     private readonly AppDbContext _context;
+    private readonly IMapper _mapper;
 
-    public ProductsController(AppDbContext context)
+    public ProductsController(AppDbContext context, IMapper mapper)
     {
       _context = context;
+      _mapper = mapper;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
+    public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts()
     {
-      return await _context.Products.ToListAsync();
+      var products = await _context.Products.ToListAsync();
+      return _mapper.Map<List<ProductDto>>(products);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<Product>> GetProduct(int id)
+    public async Task<ActionResult<ProductDto>> GetProduct(int id)
     {
       var product = await _context.Products.FindAsync(id);
 
@@ -142,26 +130,28 @@ namespace comp1682_back_end.Controllers
         return NotFound();
       }
 
-      return product;
+      return _mapper.Map<ProductDto>(product);
     }
 
     [HttpPost]
-    public async Task<ActionResult<Product>> PostProduct(Product product)
+    public async Task<ActionResult<ProductDto>> PostProduct(ProductDto productDto)
     {
+      var product = _mapper.Map<Product>(productDto);
       _context.Products.Add(product);
       await _context.SaveChangesAsync();
 
-      return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
+      return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, _mapper.Map<ProductDto>(product));
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> PutProduct(int id, Product product)
+    public async Task<IActionResult> PutProduct(int id, ProductDto productDto)
     {
-      if (id != product.Id)
+      if (id != productDto.Id)
       {
         return BadRequest();
       }
 
+      var product = _mapper.Map<Product>(productDto);
       _context.Entry(product).State = EntityState.Modified;
 
       try
@@ -209,37 +199,28 @@ namespace comp1682_back_end.Controllers
 
 ```cs
 // CategoriesController.cs
-using comp1682_back_end.Data;
-using comp1682_back_end.Models;
-
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-namespace comp1682_back_end.Controllers
-{
   [Route("api/[controller]")]
   [ApiController]
   public class CategoriesController : ControllerBase
   {
     private readonly AppDbContext _context;
+    private readonly IMapper _mapper;
 
-    public CategoriesController(AppDbContext context)
+    public CategoriesController(AppDbContext context, IMapper mapper)
     {
       _context = context;
+      _mapper = mapper;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Category>>> GetCategories()
+    public async Task<ActionResult<IEnumerable<CategoryDto>>> GetCategories()
     {
-      return await _context.Categories.ToListAsync();
+      var categories = await _context.Categories.ToListAsync();
+      return _mapper.Map<List<CategoryDto>>(categories);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<Category>> GetCategory(int id)
+    public async Task<ActionResult<CategoryDto>> GetCategory(int id)
     {
       var category = await _context.Categories.FindAsync(id);
 
@@ -248,26 +229,28 @@ namespace comp1682_back_end.Controllers
         return NotFound();
       }
 
-      return category;
+      return _mapper.Map<CategoryDto>(category);
     }
 
     [HttpPost]
-    public async Task<ActionResult<Category>> PostCategory(Category category)
+    public async Task<ActionResult<CategoryDto>> PostCategory(CategoryDto categoryDto)
     {
+      var category = _mapper.Map<Category>(categoryDto);
       _context.Categories.Add(category);
       await _context.SaveChangesAsync();
 
-      return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, category);
+      return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, _mapper.Map<CategoryDto>(category));
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> PutCategory(int id, Category category)
+    public async Task<IActionResult> PutCategory(int id, CategoryDto categoryDto)
     {
-      if (id != category.Id)
+      if (id != categoryDto.Id)
       {
         return BadRequest();
       }
 
+      var category = _mapper.Map<Category>(categoryDto);
       _context.Entry(category).State = EntityState.Modified;
 
       try
@@ -310,105 +293,12 @@ namespace comp1682_back_end.Controllers
       return _context.Categories.Any(c => c.Id == id);
     }
   }
-}
-
 ```
 
-## Migration
+## Conclusion
 
-Install following package
+By using AutoMapper, we've simplified the mapping process between entities and DTOs in our Web API project.
 
-`Microsoft.EntityFrameworkCore.Tools` Version=`3.1.0`
+This makes the code more maintainable and reduces boilerplate code.
 
-Make migration with following command in Package Manager Console
-
-```
-Add-Migration InitDb
-```
-
-![Alt text](image-2.png)
-
-After that, we need to update database
-
-```
-Update-Database
-```
-
-## Run the Application
-
-Build the solution to make sure there are no errors.
-
-Press F5 or click on the Start button to run the application.
-
-Your Web API should be up and running, accessible at https://localhost:<port>/ (default port is 5001).
-
-## Install Swagger NuGet Package
-
-Right-click on your project in the Solution Explorer and select Manage NuGet Packages.
-In the NuGet Package Manager, search for "Swashbuckle.AspNetCore" and click Install to add the Swagger package to your project.
-
-## Configure Swagger in Startup.cs
-
-Open the "Startup.cs" file.
-In the ConfigureServices method, add the following code to configure Swagger:
-
-```cs
-using Microsoft.OpenApi.Models;
-
-public void ConfigureServices(IServiceCollection services)
-{
-    // Add the database context and use SQL Server LocalDB
-    services.AddDbContext<AppDbContext>(options =>
-        options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
-
-    // Add Swagger documentation
-    services.AddSwaggerGen(c =>
-    {
-        c.SwaggerDoc("v1", new OpenApiInfo
-        {
-            Title = "Your API Name",
-            Version = "v1",
-            Description = "Your API description",
-        });
-    });
-
-    services.AddControllers();
-}
-
-```
-
-In the Configure method, add the following code to enable Swagger and Swagger UI:
-
-```cs
-using Microsoft.AspNetCore.Builder;
-
-public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
-{
-    //...
-
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Your API Name V1");
-    });
-
-    //...
-}
-
-```
-
-## Test Swagger Documentation
-
-Build and run your Web API project again (press F5 or click Start).
-
-Now, navigate to https://localhost:<port>/swagger in your browser. This will open the Swagger UI, which displays the API documentation.
-
-## Debug
-
-If you face Certificate error, turn off `use SSL`
-
-![Alt text](image-3.png)
-
-## Run the API
-
-![Alt text](image-4.png)
+The API functionality remains the same, but the use of AutoMapper allows for easier updates and additions to the data models and DTOs in the future.

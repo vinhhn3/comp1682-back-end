@@ -1,4 +1,6 @@
-﻿using comp1682_back_end.Data;
+﻿using AutoMapper;
+
+using comp1682_back_end.Data;
 using comp1682_back_end.Models;
 
 using Microsoft.AspNetCore.Mvc;
@@ -15,20 +17,23 @@ namespace comp1682_back_end.Controllers
   public class CategoriesController : ControllerBase
   {
     private readonly AppDbContext _context;
+    private readonly IMapper _mapper;
 
-    public CategoriesController(AppDbContext context)
+    public CategoriesController(AppDbContext context, IMapper mapper)
     {
       _context = context;
+      _mapper = mapper;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Category>>> GetCategories()
+    public async Task<ActionResult<IEnumerable<CategoryDto>>> GetCategories()
     {
-      return await _context.Categories.ToListAsync();
+      var categories = await _context.Categories.ToListAsync();
+      return _mapper.Map<List<CategoryDto>>(categories);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<Category>> GetCategory(int id)
+    public async Task<ActionResult<CategoryDto>> GetCategory(int id)
     {
       var category = await _context.Categories.FindAsync(id);
 
@@ -37,26 +42,28 @@ namespace comp1682_back_end.Controllers
         return NotFound();
       }
 
-      return category;
+      return _mapper.Map<CategoryDto>(category);
     }
 
     [HttpPost]
-    public async Task<ActionResult<Category>> PostCategory(Category category)
+    public async Task<ActionResult<CategoryDto>> PostCategory(CategoryDto categoryDto)
     {
+      var category = _mapper.Map<Category>(categoryDto);
       _context.Categories.Add(category);
       await _context.SaveChangesAsync();
 
-      return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, category);
+      return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, _mapper.Map<CategoryDto>(category));
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> PutCategory(int id, Category category)
+    public async Task<IActionResult> PutCategory(int id, CategoryDto categoryDto)
     {
-      if (id != category.Id)
+      if (id != categoryDto.Id)
       {
         return BadRequest();
       }
 
+      var category = _mapper.Map<Category>(categoryDto);
       _context.Entry(category).State = EntityState.Modified;
 
       try

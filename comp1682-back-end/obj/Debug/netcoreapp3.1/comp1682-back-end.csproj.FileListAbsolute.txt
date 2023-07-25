@@ -48,3 +48,9 @@ C:\Users\vinh-hoang\source\repos\comp1682-back-end\comp1682-back-end\bin\Debug\n
 C:\Users\vinh-hoang\source\repos\comp1682-back-end\comp1682-back-end\bin\Debug\netcoreapp3.1\Swashbuckle.AspNetCore.SwaggerGen.dll
 C:\Users\vinh-hoang\source\repos\comp1682-back-end\comp1682-back-end\bin\Debug\netcoreapp3.1\Swashbuckle.AspNetCore.SwaggerUI.dll
 C:\Users\vinh-hoang\source\repos\comp1682-back-end\comp1682-back-end\obj\Debug\netcoreapp3.1\comp1682-back-end.MvcApplicationPartsAssemblyInfo.cs
+C:\Users\vinh-hoang\source\repos\comp1682-back-end\comp1682-back-end\bin\Debug\netcoreapp3.1\AutoMapper.dll
+C:\Users\vinh-hoang\source\repos\comp1682-back-end\comp1682-back-end\bin\Debug\netcoreapp3.1\AutoMapper.Extensions.Microsoft.DependencyInjection.dll
+C:\Users\vinh-hoang\source\repos\comp1682-back-end\comp1682-back-end\bin\Debug\netcoreapp3.1\Microsoft.Extensions.DependencyInjection.Abstractions.dll
+C:\Users\vinh-hoang\source\repos\comp1682-back-end\comp1682-back-end\bin\Debug\netcoreapp3.1\Microsoft.Extensions.Options.dll
+C:\Users\vinh-hoang\source\repos\comp1682-back-end\comp1682-back-end\bin\Debug\netcoreapp3.1\Microsoft.Extensions.Primitives.dll
+C:\Users\vinh-hoang\source\repos\comp1682-back-end\comp1682-back-end\bin\Debug\netcoreapp3.1\System.Runtime.CompilerServices.Unsafe.dll

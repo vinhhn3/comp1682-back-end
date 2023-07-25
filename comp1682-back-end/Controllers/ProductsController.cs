@@ -7,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoMapper;
+using comp1682_back_end.DTOs;
+
 namespace comp1682_back_end.Controllers
 {
 
@@ -16,20 +19,23 @@ namespace comp1682_back_end.Controllers
   public class ProductsController : ControllerBase
   {
     private readonly AppDbContext _context;
+    private readonly IMapper _mapper;
 
-    public ProductsController(AppDbContext context)
+    public ProductsController(AppDbContext context, IMapper mapper)
     {
       _context = context;
+      _mapper = mapper;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
+    public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts()
     {
-      return await _context.Products.ToListAsync();
+      var products = await _context.Products.ToListAsync();
+      return _mapper.Map<List<ProductDto>>(products);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<Product>> GetProduct(int id)
+    public async Task<ActionResult<ProductDto>> GetProduct(int id)
     {
       var product = await _context.Products.FindAsync(id);
 
@@ -38,26 +44,28 @@ namespace comp1682_back_end.Controllers
         return NotFound();
       }
 
-      return product;
+      return _mapper.Map<ProductDto>(product);
     }
 
     [HttpPost]
-    public async Task<ActionResult<Product>> PostProduct(Product product)
+    public async Task<ActionResult<ProductDto>> PostProduct(ProductDto productDto)
     {
+      var product = _mapper.Map<Product>(productDto);
       _context.Products.Add(product);
       await _context.SaveChangesAsync();
 
-      return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
+      return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, _mapper.Map<ProductDto>(product));
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> PutProduct(int id, Product product)
+    public async Task<IActionResult> PutProduct(int id, ProductDto productDto)
     {
-      if (id != product.Id)
+      if (id != productDto.Id)
       {
         return BadRequest();
       }
 
+      var product = _mapper.Map<Product>(productDto);
       _context.Entry(product).State = EntityState.Modified;
 
       try

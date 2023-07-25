@@ -34,6 +34,9 @@ namespace comp1682_back_end
       services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
 
+      // Add AutoMapper
+      services.AddAutoMapper(typeof(Startup));
+
       services.AddSwaggerGen(c =>
       {
         c.SwaggerDoc("v1", new OpenApiInfo
