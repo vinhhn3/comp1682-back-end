@@ -1,4 +1,6 @@
 using comp1682_back_end.Data;
+using comp1682_back_end.Repositories.Interfaces;
+using comp1682_back_end.Repositories;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -36,6 +38,10 @@ namespace comp1682_back_end
 
       // Add AutoMapper
       services.AddAutoMapper(typeof(Startup));
+
+      // Add repositories and dependency injection
+      services.AddScoped<IProductRepository, ProductRepository>();
+      services.AddScoped<ICategoryRepository, CategoryRepository>();
 
       services.AddSwaggerGen(c =>
       {

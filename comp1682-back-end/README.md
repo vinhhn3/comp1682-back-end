@@ -1,17 +1,156 @@
-## Overview of the Application
+## Overview of the Repository Pattern
 
-![Alt text](image-7.png)
+![Alt text](image-8.png)
 
-## Install AutoMapper NuGet Package
+## Create the Repository Interfaces
 
-Right-click on your project in the Solution Explorer and select Manage NuGet Packages.
+Create two new folders in your project: ` Repositories`` and  `Interfaces`
 
-In the NuGet Package Manager, search for `AutoMapper.Extensions.Microsoft.DependencyInjection` and click Install to add the AutoMapper package to your project.
+Inside the `Interfaces` folder, create two interfaces: `IProductRepository.cs` and `ICategoryRepository.cs`.
 
-## Configure AutoMapper in Startup.cs
+```cs
+// IProductRepository.cs
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+public interface IProductRepository
+{
+    Task<IEnumerable<Product>> GetAllProducts();
+    Task<Product> GetProductById(int id);
+    Task<Product> AddProduct(Product product);
+    Task<Product> UpdateProduct(Product product);
+    Task<bool> DeleteProduct(int id);
+}
+
+// ICategoryRepository.cs
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+public interface ICategoryRepository
+{
+    Task<IEnumerable<Category>> GetAllCategories();
+    Task<Category> GetCategoryById(int id);
+    Task<Category> AddCategory(Category category);
+    Task<Category> UpdateCategory(Category category);
+    Task<bool> DeleteCategory(int id);
+}
+```
+
+## Implement the Repository Classes
+
+Inside the `Repositories` folder, create two classes: `ProductRepository.cs` and `CategoryRepository.cs`.
+
+These classes will implement the respective interfaces and handle data access logic.
+
+```cs
+// ProductRepository.cs
+using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+public class ProductRepository : IProductRepository
+{
+    private readonly AppDbContext _context;
+
+    public ProductRepository(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<IEnumerable<Product>> GetAllProducts()
+    {
+        return await _context.Products.ToListAsync();
+    }
+
+    public async Task<Product> GetProductById(int id)
+    {
+        return await _context.Products.FindAsync(id);
+    }
+
+    public async Task<Product> AddProduct(Product product)
+    {
+        _context.Products.Add(product);
+        await _context.SaveChangesAsync();
+        return product;
+    }
+
+    public async Task<Product> UpdateProduct(Product product)
+    {
+        _context.Entry(product).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
+        return product;
+    }
+
+    public async Task<bool> DeleteProduct(int id)
+    {
+        var product = await _context.Products.FindAsync(id);
+        if (product == null)
+            return false;
+
+        _context.Products.Remove(product);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+}
+
+// CategoryRepository.cs
+using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+public class CategoryRepository : ICategoryRepository
+{
+    private readonly AppDbContext _context;
+
+    public CategoryRepository(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<IEnumerable<Category>> GetAllCategories()
+    {
+        return await _context.Categories.ToListAsync();
+    }
+
+    public async Task<Category> GetCategoryById(int id)
+    {
+        return await _context.Categories.FindAsync(id);
+    }
+
+    public async Task<Category> AddCategory(Category category)
+    {
+        _context.Categories.Add(category);
+        await _context.SaveChangesAsync();
+        return category;
+    }
+
+    public async Task<Category> UpdateCategory(Category category)
+    {
+        _context.Entry(category).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
+        return category;
+    }
+
+    public async Task<bool> DeleteCategory(int id)
+    {
+        var category = await _context.Categories.FindAsync(id);
+        if (category == null)
+            return false;
+
+        _context.Categories.Remove(category);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+}
+```
+
+## Register Services with Dependency Injection
 
 Open the `Startup.cs` file.
-In the ConfigureServices method, add the following code to configure AutoMapper:
+
+In the ConfigureServices method, replace the existing code with the following:
 
 ```cs
 public void ConfigureServices(IServiceCollection services)
@@ -19,6 +158,10 @@ public void ConfigureServices(IServiceCollection services)
     // Add the database context and use SQL Server LocalDB
     services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
+
+    // Add repositories and dependency injection
+    services.AddScoped<IProductRepository, ProductRepository>();
+    services.AddScoped<ICategoryRepository, CategoryRepository>();
 
     // Add AutoMapper
     services.AddAutoMapper(typeof(Startup));
@@ -38,267 +181,190 @@ public void ConfigureServices(IServiceCollection services)
 }
 ```
 
-## Create DTOs (Data Transfer Objects)
+## Update the Controllers to Use Dependency Injection
 
-In the "Models" folder, create classes for DTOs that will be used to transfer data between the Web API and the client.
-
-You can name them `ProductDto` and `CategoryDto`.
-
-```csharp
-// ProductDto.cs
-public class ProductDto
-{
-    public int Id { get; set; }
-    public string Name { get; set; }
-    public decimal Price { get; set; }
-    public int CategoryId { get; set; }
-}
-
-// CategoryDto.cs
-public class CategoryDto
-{
-    public int Id { get; set; }
-    public string Name { get; set; }
-}
-
-```
-
-## Configure AutoMapper Mapping Profiles
-
-In the root of your project, create a folder named `Mappings` and add a class named `MappingProfiles.cs`.
-
-```cs
-  public class MappingProfiles : Profile
-  {
-    public MappingProfiles()
-    {
-      CreateMap<Product, ProductDto>().ReverseMap();
-      CreateMap<Category, CategoryDto>().ReverseMap();
-    }
-  }
-```
-
-## Update the Controllers to Use AutoMapper
-
-Update the `ProductsController` and `CategoriesController` to use AutoMapper for mapping between entities and DTOs.
+Now, update the `ProductsController` and `CategoriesController` to use dependency injection for the repository interfaces.
 
 ```cs
 // ProductsController.cs
-using Microsoft.AspNetCore.Mvc;
-
-using comp1682_back_end.Data;
-using comp1682_back_end.Models;
-using Microsoft.EntityFrameworkCore;
-
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+// ProductsController.cs
 using AutoMapper;
-using comp1682_back_end.DTOs;
+using Microsoft.AspNetCore.Mvc;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
-namespace comp1682_back_end.Controllers
+[Route("api/[controller]")]
+[ApiController]
+public class ProductsController : ControllerBase
 {
-
-
-  [Route("api/[controller]")]
-  [ApiController]
-  public class ProductsController : ControllerBase
-  {
-    private readonly AppDbContext _context;
+    private readonly IProductRepository _productRepository;
     private readonly IMapper _mapper;
 
-    public ProductsController(AppDbContext context, IMapper mapper)
+    public ProductsController(IProductRepository productRepository, IMapper mapper)
     {
-      _context = context;
-      _mapper = mapper;
+        _productRepository = productRepository;
+        _mapper = mapper;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts()
     {
-      var products = await _context.Products.ToListAsync();
-      return _mapper.Map<List<ProductDto>>(products);
+        var products = await _productRepository.GetAllProducts();
+        return _mapper.Map<List<ProductDto>>(products);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ProductDto>> GetProduct(int id)
     {
-      var product = await _context.Products.FindAsync(id);
+        var product = await _productRepository.GetProductById(id);
 
-      if (product == null)
-      {
-        return NotFound();
-      }
+        if (product == null)
+        {
+            return NotFound();
+        }
 
-      return _mapper.Map<ProductDto>(product);
+        return _mapper.Map<ProductDto>(product);
     }
 
     [HttpPost]
     public async Task<ActionResult<ProductDto>> PostProduct(ProductDto productDto)
     {
-      var product = _mapper.Map<Product>(productDto);
-      _context.Products.Add(product);
-      await _context.SaveChangesAsync();
-
-      return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, _mapper.Map<ProductDto>(product));
+        var product = _mapper.Map<Product>(productDto);
+        var addedProduct = await _productRepository.AddProduct(product);
+        return CreatedAtAction(nameof(GetProduct), new { id = addedProduct.Id }, _mapper.Map<ProductDto>(addedProduct));
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> PutProduct(int id, ProductDto productDto)
     {
-      if (id != productDto.Id)
-      {
-        return BadRequest();
-      }
-
-      var product = _mapper.Map<Product>(productDto);
-      _context.Entry(product).State = EntityState.Modified;
-
-      try
-      {
-        await _context.SaveChangesAsync();
-      }
-      catch (DbUpdateConcurrencyException)
-      {
-        if (!ProductExists(id))
+        if (id != productDto.Id)
         {
-          return NotFound();
+            return BadRequest();
         }
-        else
-        {
-          throw;
-        }
-      }
 
-      return NoContent();
+        var existingProduct = await _productRepository.GetProductById(id);
+        if (existingProduct == null)
+        {
+            return NotFound();
+        }
+
+        _mapper.Map(productDto, existingProduct);
+        var updatedProduct = await _productRepository.UpdateProduct(existingProduct);
+
+        return NoContent();
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteProduct(int id)
     {
-      var product = await _context.Products.FindAsync(id);
+        var product = await _productRepository.GetProductById(id);
+        if (product == null)
+        {
+            return NotFound();
+        }
 
-      if (product == null)
-      {
-        return NotFound();
-      }
-
-      _context.Products.Remove(product);
-      await _context.SaveChangesAsync();
-
-      return NoContent();
+        var deleted = await _productRepository.DeleteProduct(id);
+        if (deleted)
+        {
+            return NoContent();
+        }
+        else
+        {
+            // Something went wrong with deletion
+            return StatusCode(500);
+        }
     }
-
-    private bool ProductExists(int id)
-    {
-      return _context.Products.Any(p => p.Id == id);
-    }
-  }
 }
 ```
 
 ```cs
 // CategoriesController.cs
-  [Route("api/[controller]")]
-  [ApiController]
-  public class CategoriesController : ControllerBase
-  {
-    private readonly AppDbContext _context;
+// CategoriesController.cs
+using AutoMapper;
+using Microsoft.AspNetCore.Mvc;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+[Route("api/[controller]")]
+[ApiController]
+public class CategoriesController : ControllerBase
+{
+    private readonly ICategoryRepository _categoryRepository;
     private readonly IMapper _mapper;
 
-    public CategoriesController(AppDbContext context, IMapper mapper)
+    public CategoriesController(ICategoryRepository categoryRepository, IMapper mapper)
     {
-      _context = context;
-      _mapper = mapper;
+        _categoryRepository = categoryRepository;
+        _mapper = mapper;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CategoryDto>>> GetCategories()
     {
-      var categories = await _context.Categories.ToListAsync();
-      return _mapper.Map<List<CategoryDto>>(categories);
+        var categories = await _categoryRepository.GetAllCategories();
+        return _mapper.Map<List<CategoryDto>>(categories);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<CategoryDto>> GetCategory(int id)
     {
-      var category = await _context.Categories.FindAsync(id);
+        var category = await _categoryRepository.GetCategoryById(id);
 
-      if (category == null)
-      {
-        return NotFound();
-      }
+        if (category == null)
+        {
+            return NotFound();
+        }
 
-      return _mapper.Map<CategoryDto>(category);
+        return _mapper.Map<CategoryDto>(category);
     }
 
     [HttpPost]
     public async Task<ActionResult<CategoryDto>> PostCategory(CategoryDto categoryDto)
     {
-      var category = _mapper.Map<Category>(categoryDto);
-      _context.Categories.Add(category);
-      await _context.SaveChangesAsync();
-
-      return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, _mapper.Map<CategoryDto>(category));
+        var category = _mapper.Map<Category>(categoryDto);
+        var addedCategory = await _categoryRepository.AddCategory(category);
+        return CreatedAtAction(nameof(GetCategory), new { id = addedCategory.Id }, _mapper.Map<CategoryDto>(addedCategory));
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> PutCategory(int id, CategoryDto categoryDto)
     {
-      if (id != categoryDto.Id)
-      {
-        return BadRequest();
-      }
-
-      var category = _mapper.Map<Category>(categoryDto);
-      _context.Entry(category).State = EntityState.Modified;
-
-      try
-      {
-        await _context.SaveChangesAsync();
-      }
-      catch (DbUpdateConcurrencyException)
-      {
-        if (!CategoryExists(id))
+        if (id != categoryDto.Id)
         {
-          return NotFound();
+            return BadRequest();
         }
-        else
-        {
-          throw;
-        }
-      }
 
-      return NoContent();
+        var existingCategory = await _categoryRepository.GetCategoryById(id);
+        if (existingCategory == null)
+        {
+            return NotFound();
+        }
+
+        _mapper.Map(categoryDto, existingCategory);
+        var updatedCategory = await _categoryRepository.UpdateCategory(existingCategory);
+
+        return NoContent();
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteCategory(int id)
     {
-      var category = await _context.Categories.FindAsync(id);
+        var category = await _categoryRepository.GetCategoryById(id);
+        if (category == null)
+        {
+            return NotFound();
+        }
 
-      if (category == null)
-      {
-        return NotFound();
-      }
-
-      _context.Categories.Remove(category);
-      await _context.SaveChangesAsync();
-
-      return NoContent();
+        var deleted = await _categoryRepository.DeleteCategory(id);
+        if (deleted)
+        {
+            return NoContent();
+        }
+        else
+        {
+            // Something went wrong with deletion
+            return StatusCode(500);
+        }
     }
-
-    private bool CategoryExists(int id)
-    {
-      return _context.Categories.Any(c => c.Id == id);
-    }
-  }
+}
 ```
-
-## Conclusion
-
-By using AutoMapper, we've simplified the mapping process between entities and DTOs in our Web API project.
-
-This makes the code more maintainable and reduces boilerplate code.
-
-The API functionality remains the same, but the use of AutoMapper allows for easier updates and additions to the data models and DTOs in the future.

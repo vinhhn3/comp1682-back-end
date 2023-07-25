@@ -2,6 +2,7 @@
 
 using comp1682_back_end.Data;
 using comp1682_back_end.Models;
+using comp1682_back_end.Repositories.Interfaces;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,26 +17,26 @@ namespace comp1682_back_end.Controllers
   [ApiController]
   public class CategoriesController : ControllerBase
   {
-    private readonly AppDbContext _context;
+    private readonly ICategoryRepository _categoryRepository;
     private readonly IMapper _mapper;
 
-    public CategoriesController(AppDbContext context, IMapper mapper)
+    public CategoriesController(ICategoryRepository categoryRepository, IMapper mapper)
     {
-      _context = context;
+      _categoryRepository = categoryRepository;
       _mapper = mapper;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CategoryDto>>> GetCategories()
     {
-      var categories = await _context.Categories.ToListAsync();
+      var categories = await _categoryRepository.GetAllCategories();
       return _mapper.Map<List<CategoryDto>>(categories);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<CategoryDto>> GetCategory(int id)
     {
-      var category = await _context.Categories.FindAsync(id);
+      var category = await _categoryRepository.GetCategoryById(id);
 
       if (category == null)
       {
@@ -49,10 +50,8 @@ namespace comp1682_back_end.Controllers
     public async Task<ActionResult<CategoryDto>> PostCategory(CategoryDto categoryDto)
     {
       var category = _mapper.Map<Category>(categoryDto);
-      _context.Categories.Add(category);
-      await _context.SaveChangesAsync();
-
-      return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, _mapper.Map<CategoryDto>(category));
+      var addedCategory = await _categoryRepository.AddCategory(category);
+      return CreatedAtAction(nameof(GetCategory), new { id = addedCategory.Id }, _mapper.Map<CategoryDto>(addedCategory));
     }
 
     [HttpPut("{id}")]
@@ -63,24 +62,14 @@ namespace comp1682_back_end.Controllers
         return BadRequest();
       }
 
-      var category = _mapper.Map<Category>(categoryDto);
-      _context.Entry(category).State = EntityState.Modified;
+      var existingCategory = await _categoryRepository.GetCategoryById(id);
+      if (existingCategory == null)
+      {
+        return NotFound();
+      }
 
-      try
-      {
-        await _context.SaveChangesAsync();
-      }
-      catch (DbUpdateConcurrencyException)
-      {
-        if (!CategoryExists(id))
-        {
-          return NotFound();
-        }
-        else
-        {
-          throw;
-        }
-      }
+      _mapper.Map(categoryDto, existingCategory);
+      var updatedCategory = await _categoryRepository.UpdateCategory(existingCategory);
 
       return NoContent();
     }
@@ -88,22 +77,22 @@ namespace comp1682_back_end.Controllers
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteCategory(int id)
     {
-      var category = await _context.Categories.FindAsync(id);
-
+      var category = await _categoryRepository.GetCategoryById(id);
       if (category == null)
       {
         return NotFound();
       }
 
-      _context.Categories.Remove(category);
-      await _context.SaveChangesAsync();
-
-      return NoContent();
-    }
-
-    private bool CategoryExists(int id)
-    {
-      return _context.Categories.Any(c => c.Id == id);
+      var deleted = await _categoryRepository.DeleteCategory(id);
+      if (deleted)
+      {
+        return NoContent();
+      }
+      else
+      {
+        // Something went wrong with deletion
+        return StatusCode(500);
+      }
     }
   }
 }

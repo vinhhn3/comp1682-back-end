@@ -9,35 +9,34 @@ using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using comp1682_back_end.DTOs;
+using comp1682_back_end.Repositories.Interfaces;
 
 namespace comp1682_back_end.Controllers
 {
-
-
   [Route("api/[controller]")]
   [ApiController]
   public class ProductsController : ControllerBase
   {
-    private readonly AppDbContext _context;
+    private readonly IProductRepository _productRepository;
     private readonly IMapper _mapper;
 
-    public ProductsController(AppDbContext context, IMapper mapper)
+    public ProductsController(IProductRepository productRepository, IMapper mapper)
     {
-      _context = context;
+      _productRepository = productRepository;
       _mapper = mapper;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts()
     {
-      var products = await _context.Products.ToListAsync();
+      var products = await _productRepository.GetAllProducts();
       return _mapper.Map<List<ProductDto>>(products);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ProductDto>> GetProduct(int id)
     {
-      var product = await _context.Products.FindAsync(id);
+      var product = await _productRepository.GetProductById(id);
 
       if (product == null)
       {
@@ -51,10 +50,8 @@ namespace comp1682_back_end.Controllers
     public async Task<ActionResult<ProductDto>> PostProduct(ProductDto productDto)
     {
       var product = _mapper.Map<Product>(productDto);
-      _context.Products.Add(product);
-      await _context.SaveChangesAsync();
-
-      return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, _mapper.Map<ProductDto>(product));
+      var addedProduct = await _productRepository.AddProduct(product);
+      return CreatedAtAction(nameof(GetProduct), new { id = addedProduct.Id }, _mapper.Map<ProductDto>(addedProduct));
     }
 
     [HttpPut("{id}")]
@@ -65,24 +62,14 @@ namespace comp1682_back_end.Controllers
         return BadRequest();
       }
 
-      var product = _mapper.Map<Product>(productDto);
-      _context.Entry(product).State = EntityState.Modified;
+      var existingProduct = await _productRepository.GetProductById(id);
+      if (existingProduct == null)
+      {
+        return NotFound();
+      }
 
-      try
-      {
-        await _context.SaveChangesAsync();
-      }
-      catch (DbUpdateConcurrencyException)
-      {
-        if (!ProductExists(id))
-        {
-          return NotFound();
-        }
-        else
-        {
-          throw;
-        }
-      }
+      _mapper.Map(productDto, existingProduct);
+      var updatedProduct = await _productRepository.UpdateProduct(existingProduct);
 
       return NoContent();
     }
@@ -90,22 +77,22 @@ namespace comp1682_back_end.Controllers
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteProduct(int id)
     {
-      var product = await _context.Products.FindAsync(id);
-
+      var product = await _productRepository.GetProductById(id);
       if (product == null)
       {
         return NotFound();
       }
 
-      _context.Products.Remove(product);
-      await _context.SaveChangesAsync();
-
-      return NoContent();
-    }
-
-    private bool ProductExists(int id)
-    {
-      return _context.Products.Any(p => p.Id == id);
+      var deleted = await _productRepository.DeleteProduct(id);
+      if (deleted)
+      {
+        return NoContent();
+      }
+      else
+      {
+        // Something went wrong with deletion
+        return StatusCode(500);
+      }
     }
   }
 }
