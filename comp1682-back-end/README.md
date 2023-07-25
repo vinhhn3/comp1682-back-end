@@ -10,9 +10,6 @@ Inside the `Interfaces` folder, create two interfaces: `IProductRepository.cs` a
 
 ```cs
 // IProductRepository.cs
-using System.Collections.Generic;
-using System.Threading.Tasks;
-
 public interface IProductRepository
 {
     Task<IEnumerable<Product>> GetAllProducts();
@@ -23,9 +20,6 @@ public interface IProductRepository
 }
 
 // ICategoryRepository.cs
-using System.Collections.Generic;
-using System.Threading.Tasks;
-
 public interface ICategoryRepository
 {
     Task<IEnumerable<Category>> GetAllCategories();
