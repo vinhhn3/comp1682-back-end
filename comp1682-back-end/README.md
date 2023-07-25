@@ -1,3 +1,7 @@
+## Overview of the Application
+
+![Alt text](image-5.png)
+
 ## Set up the Data Model
 
 In the Solution Explorer, right-click on your project and choose Add > New Folder. Name the folder "Models."
