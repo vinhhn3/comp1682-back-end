@@ -1,6 +1,6 @@
 ## Overview of the Application
 
-![Alt text](image-5.png)
+![Alt text](image-6.png)
 
 ## Set up the Data Model
 
