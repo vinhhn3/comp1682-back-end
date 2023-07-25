@@ -17,6 +17,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AspNetCoreRateLimit;
 
 namespace comp1682_back_end
 {
@@ -54,6 +55,14 @@ namespace comp1682_back_end
         });
       });
 
+      // Configure rate limiting options
+      services.Configure<IpRateLimitOptions>(Configuration.GetSection("IpRateLimiting"));
+      services.Configure<IpRateLimitPolicies>(Configuration.GetSection("IpRateLimitPolicies"));
+      services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+      // Add rate limiting middleware
+      services.AddMemoryCache(); // Add the IMemoryCache service here
+      services.AddInMemoryRateLimiting();
+
       services.AddControllers();
     }
 
@@ -64,6 +73,8 @@ namespace comp1682_back_end
       {
         app.UseDeveloperExceptionPage();
       }
+
+      app.UseIpRateLimiting();
 
       app.UseSwagger();
       app.UseSwaggerUI(c =>
