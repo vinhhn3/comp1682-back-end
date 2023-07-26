@@ -97,3 +97,16 @@ In the `appsettings.json` file, add the rate limiting settings:
 ## Use Rate Limiting Middleware
 
 In the Configure method in `Startup.cs`, add the rate limiting middleware:
+
+```cs
+ public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+    {
+      if (env.IsDevelopment())
+      {
+        app.UseDeveloperExceptionPage();
+      }
+
+      app.UseIpRateLimiting();
+      // The rest of the middleware
+    }
+```
