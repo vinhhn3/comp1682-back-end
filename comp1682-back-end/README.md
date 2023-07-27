@@ -8,6 +8,18 @@ If you haven't installed Postman yet, you can download it from the Postman websi
 
 https://www.postman.com/
 
+## API Testing flow
+
+![Alt text](image-22.png)
+
+GUI testing is different from the API testing as GUI testing is present at Presentation layer where the API testing is present at Business layer.
+
+If we will take an example of a typical app then API is the middle layer in between UI layer and Data base layer and due to this API communication and data exchange between the applications occur.
+
+The below figure represents the layer at which API testing is performed
+
+![Alt text](image-23.png)
+
 ## Write Tests
 
 Let's write API tests for the `CategoriesController` using Postman. Follow the steps below to create the tests
