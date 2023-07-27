@@ -1,234 +1,106 @@
-## Overview of Integration Tests
+## Overview of API Testing
 
-Integration tests are a type of software testing that assesses how different components of an application work together.
+To perform API testing for the project, we can use a testing framework like Postman or Newman.
 
-They ensure that integrated units function smoothly, identifying potential issues in the interactions between these components.
+In this example, I'll demonstrate how to write API tests using Postman. Postman provides a user-friendly interface to create, manage, and execute API tests.
 
-These tests come after unit tests and help deliver a more reliable software product to users
+If you haven't installed Postman yet, you can download it from the Postman website.
 
-![Alt text](image-16.png)
+https://www.postman.com/
 
-## Apply Integration Tests
+## Write Tests
 
-### Add Dependency
+Let's write API tests for the `CategoriesController` using Postman. Follow the steps below to create the tests
 
-Microsoft.AspNetCore.Mvc.Testing: Install the `Microsoft.AspNetCore.Mvc.Testing` NuGet package for testing the Web API.
+### Get all Categories
 
-### Write Integration Tests
+Open Postman and ensure you have the "API Tests" collection.
 
-Now, let's write the integration tests for the Web API. We'll set up an in-memory database, create a test server, and make HTTP requests to test the API endpoints.
+Create a new request and name it "Get All Categories."
 
-Create a new class file in the test project, named `ProductsControllerIntegrationTests.cs`
+Set the request method to "GET" and the URL to http://localhost:5000/api/categories.
 
-```cs
-// ProductsControllerIntegrationTests.cs
-[TestFixture]
-  public class ProductsControllerIntegrationTests
-  {
-    private HttpClient _httpClient;
-    private WebApplicationFactory<Startup> _factory;
+Click the "Send" button to make the request.
 
+Go to the "Tests" tab for the request, and write the following test script:
 
-    [OneTimeSetUp]
-    public void OneTimeSetup()
-    {
-      // Create the test server
-      _factory = new WebApplicationFactory<Startup>();
-      _httpClient = _factory.CreateClient();
-    }
+```js
+// Test status code
+pm.test("Status code is 200", function () {
+  pm.response.to.have.status(200);
+});
 
-    [OneTimeTearDown]
-    public void OneTimeTearDown()
-    {
-      _factory.Dispose();
-      _httpClient.Dispose();
-    }
+// Test response body
+pm.test("Response contains categories", function () {
+  pm.response.to.be.ok;
+});
 
-    [SetUp]
-    public async Task Setup()
-    {
-      // Prepare the in-memory database for each test
-      using (var scope = _factory.Services.CreateScope())
-      {
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        dbContext.Database.EnsureCreated(); // Ensure the database is created
-                                            // Add test data to the database (if needed)
-                                            // Example: dbContext.Products.Add(new Product { Name = "Test Product" });
-                                            // dbContext.SaveChanges();
-                                            // Add dummy data
-        dbContext.Categories.Add(
-          new Category
-          {
-            Name = "Food"
-          }
-          );
-      }
-    }
+// Parse the response body to a JSON object
+var responseBody = pm.response.json();
 
-    [Test]
-    public async Task GetAllProducts_ShouldReturnProducts()
-    {
-      // Arrange
+// Perform the assertion to compare the response body with the expected JSON array
+pm.test("Response contains categories", function () {
+  // Replace this with your expected JSON array
+  var expectedCategories = [{ id: 1, name: "food" }];
 
-      // Act
-      var response = await _httpClient.GetAsync("/api/products");
-      response.EnsureSuccessStatusCode(); // Ensure that the response is successful (status code 200)
-
-      // Assert
-      // You can check the response content, status code, etc., as needed
-    }
-
-    [Test]
-    public async Task GetProductById_ExistingProductId_ShouldReturnProduct()
-    {
-      // Arrange
-      var product = new Product {
-        Name = "Add Existing Product",
-        Price = 100,
-        CategoryId = 1,
-
-      };
-      using (var scope = _factory.Services.CreateScope())
-      {
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        dbContext.Products.Add(product);
-        await dbContext.SaveChangesAsync();
-      }
-
-      // Act
-      var response = await _httpClient.GetAsync($"/api/products/{product.Id}");
-      response.EnsureSuccessStatusCode(); // Ensure that the response is successful (status code 200)
-
-      var responseBody = await response.Content.ReadAsStringAsync();
-      var resultProduct = JsonConvert.DeserializeObject<Product>(responseBody);
-
-      // Assert
-      Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
-      Assert.AreEqual(product.Id, resultProduct.Id);
-      Assert.AreEqual(product.Name, resultProduct.Name);
-    }
-
-    [Test]
-    public async Task GetProductById_NonExistingProductId_ShouldReturnNotFound()
-    {
-      // Arrange
-
-      // Act
-      var response = await _httpClient.GetAsync("/api/products/999");
-
-      // Assert
-      Assert.AreEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Test]
-    public async Task AddProduct_ValidProduct_ShouldAddProduct()
-    {
-      // Arrange
-      var productDto = new ProductDto { Name = "New Product", Price = 100, CategoryId = 1 };
-      var serializedProduct = JsonConvert.SerializeObject(productDto);
-      var content = new StringContent(serializedProduct, Encoding.UTF8, "application/json");
-
-      // Act
-      var response = await _httpClient.PostAsync("/api/products", content);
-      response.EnsureSuccessStatusCode(); // Ensure that the response is successful (status code 200)
-
-      var responseBody = await response.Content.ReadAsStringAsync();
-      var addedProduct = JsonConvert.DeserializeObject<Product>(responseBody);
-
-      // Assert
-      Assert.AreEqual(HttpStatusCode.Created, response.StatusCode);
-      Assert.IsTrue(addedProduct.Id > 0);
-      Assert.AreEqual(productDto.Name, addedProduct.Name);
-    }
-
-    [Test]
-    public async Task UpdateProduct_ExistingProduct_ShouldUpdateProduct()
-    {
-      // Arrange
-      var product = new Product { Name = "Original Product", Price = 100, CategoryId = 1 };
-      using (var scope = _factory.Services.CreateScope())
-      {
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        dbContext.Products.Add(product);
-        await dbContext.SaveChangesAsync();
-      }
-
-      var updatedProductDto = new ProductDto { Id = product.Id, Name = "Updated Product", CategoryId = 1, Price = 200 };
-      var serializedProduct = JsonConvert.SerializeObject(updatedProductDto);
-      var content = new StringContent(serializedProduct, Encoding.UTF8, "application/json");
-
-      // Act
-      var response = await _httpClient.PutAsync($"/api/products/{product.Id}", content);
-      response.EnsureSuccessStatusCode(); // Ensure that the response is successful (status code 200)
-
-      var responseBody = await response.Content.ReadAsStringAsync();
-
-      var updatedResponse = await _httpClient.GetAsync($"/api/products/{product.Id}");
-      var updatedResponseBody = await updatedResponse.Content.ReadAsStringAsync();
-
-      var updatedProduct = JsonConvert.DeserializeObject<Product>(updatedResponseBody);
-
-      // Assert
-      Assert.AreEqual(HttpStatusCode.NoContent, response.StatusCode);
-      Assert.AreEqual(updatedProductDto.Id, updatedProduct.Id);
-      Assert.AreEqual(updatedProductDto.Name, updatedProduct.Name);
-
-      // Fetch the product from the database again to check if it was updated
-      using (var scope = _factory.Services.CreateScope())
-      {
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var fetchedProduct = await dbContext.Products.FindAsync(product.Id);
-        Assert.IsNotNull(fetchedProduct);
-        Assert.AreEqual(updatedProductDto.Name, fetchedProduct.Name);
-      }
-    }
-
-    [Test]
-    public async Task DeleteProduct_ExistingProductId_ShouldDeleteProduct()
-    {
-      // Arrange
-      var product = new Product { Name = "Product to be deleted", Price = 100, CategoryId = 1 };
-      using (var scope = _factory.Services.CreateScope())
-      {
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        dbContext.Products.Add(product);
-        await dbContext.SaveChangesAsync();
-      }
-
-      // Act
-      var response = await _httpClient.DeleteAsync($"/api/products/{product.Id}");
-      response.EnsureSuccessStatusCode(); // Ensure that the response is successful (status code 200)
-
-      // Assert
-      Assert.AreEqual(HttpStatusCode.NoContent, response.StatusCode);
-
-      // Check if the product is no longer in the database
-      using (var scope = _factory.Services.CreateScope())
-      {
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var deletedProduct = await dbContext.Products.FindAsync(1);
-        Assert.IsNull(deletedProduct);
-      }
-    }
-
-    [Test]
-    public async Task DeleteProduct_NonExistingProductId_ShouldReturnNotFound()
-    {
-      // Arrange
-
-      // Act
-      var response = await _httpClient.DeleteAsync("/api/products/999");
-
-      // Assert
-      Assert.AreEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-  }
+  // Compare the actual response with the expected array
+  pm.expect(responseBody).to.eql(expectedCategories);
+});
 ```
 
-Run tests to see the result
+![Alt text](image-19.png)
 
-![Alt text](image-17.png)
+After that, try to run the collection to see the result
 
-Check the code coverage again, you see now we can test the Controller
+![Alt text](image-20.png)
 
-![Alt text](image-18.png)
+### Add Category
+
+Create another request and name it "Add Category."
+
+Set the request method to "POST" and the URL to http://localhost:5000/api/categories.
+
+Go to the "Headers" tab and add a new header: "Content-Type" with the value "application/json."
+
+Go to the "Body" tab and select "raw." Write the following JSON data for the category to be added:
+
+```json
+{
+  "name": "Test Category"
+}
+```
+
+Click the "Send" button to make the request.
+
+Go to the "Tests" tab for the request, and write the following test script:
+
+```js
+// Test status code
+pm.test("Status code is 201", function () {
+  pm.response.to.have.status(201);
+});
+
+// Parse the response body to a JSON object
+var responseBody = pm.response.json();
+
+// Perform the assertion on the category object
+pm.test("Category added successfully", function () {
+  // Replace these properties with the keys you expect in the category object
+  var expectedProperties = ["id", "name"];
+
+  // Verify if the response body contains all the expected properties in the category object
+  pm.expect(responseBody).to.have.all.keys(expectedProperties);
+  pm.expect(responseBody)
+    .to.be.an("object")
+    .that.has.property("id")
+    .that.is.a("number");
+  pm.expect(responseBody)
+    .to.be.an("object")
+    .that.has.property("name")
+    .that.equals("Test category");
+});
+```
+
+After run the tests, we can see the result below
+
+![Alt text](image-21.png)
